@@ -1,3 +1,10 @@
       deployInControlPlane: false
       nodeSelector: {}
       tolerations: []   
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:  
+  name: standard
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
