@@ -1,4 +1,5 @@
 Great — that confirms the firewall was the root cause of the previous problem.
+kubectl get pods -A | grep -Ei 'nginx|traefik'
 
 For the new **404**, I would focus on the Ingress now. Your HelmRelease previously showed:
 
