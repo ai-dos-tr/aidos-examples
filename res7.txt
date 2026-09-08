@@ -1,4 +1,52 @@
 
+curl -vkL \
+  -H "Host: keycloak.iettaidos.sandbox" \
+  https://127.0.0.1:30443/
+
+
+
+spec:
+  values:
+    # Keycloak Quarkus Proxy ayarları
+    proxy: passthrough # veya edge
+    
+    # Keycloak HTTP / Admin ayarları
+    httpRelativePath: "/"
+    
+    # Ingress yapılandırması
+    ingress:
+      enabled: true
+      ingressClassName: nginx
+      hostname: keycloak.iettaidos.sandbox
+      path: /
+      pathType: Prefix
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+kubectl -n keycloak get ingress -o yaml
+
+spec:
+  rules:
+    - host: keycloak.iettaidos.sandbox
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak-main
+                port:
+                  number: 8080 # veya http
+
+curl -vk -H "Host: keycloak.iettaidos.sandbox" https://127.0.0.1:30443/admin/
+
+kubectl -n ingress-nginx logs -l app.kubernetes.io/component=controller --tail=20
+
+
+
+
+
 
 Exactly. **Now we have the solution confirmed.** 🎯
 
