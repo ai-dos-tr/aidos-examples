@@ -1,0 +1,99 @@
+Great — that confirms the firewall was the root cause of the previous problem.
+
+For the new **404**, I would focus on the Ingress now. Your HelmRelease previously showed:
+
+* hostname: `keycloak.iettaidos.sandbox`
+* ingress enabled
+* nginx ingress class
+* TLS enabled
+* Keycloak service behind the ingress
+
+There is one thing I immediately notice: you typed:
+
+```text
+keycloak.iettaidos.sandox
+```
+
+while your HelmRelease had:
+
+```text
+keycloak.iettaidos.sandbox
+```
+
+If that is just a typo in the message, ignore it. If that's the actual URL you're calling, that's the first thing to fix.
+
+### First, run these
+
+```bash
+kubectl -n keycloak get ingress
+```
+
+Then:
+
+```bash
+kubectl -n keycloak describe ingress keycloak-main
+```
+
+And:
+
+```bash
+kubectl -n keycloak get svc
+```
+
+Also check the nginx ingress controller:
+
+```bash
+kubectl -n kube-system get pods -o wide | grep -i ingress
+```
+
+### Very useful test
+
+From the K3s node:
+
+```bash
+curl -vk \
+  -H "Host: keycloak.iettaidos.sandbox" \
+  https://127.0.0.1/
+```
+
+If your ingress controller is exposed through NodePort, use the node's IP and HTTPS NodePort instead:
+
+```bash
+curl -vk \
+  -H "Host: keycloak.iettaidos.sandbox" \
+  https://<NODE-IP>:<HTTPS-NODEPORT>/
+```
+
+### What I suspect
+
+If you get a **404 from nginx**, rather than a Keycloak response, the request is probably reaching nginx but **not matching the Ingress rule**.
+
+Typical causes are:
+
+```text
+DNS
+  ↓
+node IP
+  ↓
+NodePort
+  ↓
+nginx ingress
+  ↓
+Host header doesn't match
+  ↓
+404
+```
+
+or:
+
+```text
+nginx ingress
+  ↓
+Ingress class / rule mismatch
+  ↓
+404
+```
+
+Since you just changed the firewall to allow NodePort, there's a good chance the request path has now moved one step further and we're seeing the next issue.
+
+**Send me the output of `kubectl -n keycloak get ingress` and `describe ingress`.** That's likely enough to pinpoint it.
