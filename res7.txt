@@ -1,3 +1,195 @@
+
+kubectl -n ingress-nginx get svc ingress-nginx-main-controller
+
+
+sudo firewall-cmd --permanent --add-port=yyyyy/tcp
+sudo firewall-cmd --reload
+
+
+sudo firewall-cmd --permanent --add-port=xxxxx/tcp
+sudo firewall-cmd --reload
+
+
+
+You're right. We have enough information now. **Yes, the immediate problem is the ingress controller's exposed port, not Keycloak.**
+
+Your request is reaching Traefik because Traefik owns the external `443` path:
+
+```text
+Traefik: 443 → NodePort 30606
+```
+
+while Keycloak is configured for nginx.
+
+## Solution: expose nginx on the firewall and use nginx's NodePort
+
+Run this:
+
+```bash
+kubectl -n ingress-nginx get svc ingress-nginx-main-controller
+```
+
+You will get something similar to:
+
+```text
+NAME                            TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)
+ingress-nginx-main-controller   NodePort   10.43.x.x      <none>        80:xxxxx/TCP,443:yyyyy/TCP
+```
+
+Suppose the HTTPS port is `yyyyy`.
+
+### 1. Open nginx HTTPS NodePort
+
+```bash
+sudo firewall-cmd --permanent --add-port=yyyyy/tcp
+sudo firewall-cmd --reload
+```
+
+Also open its HTTP NodePort if you want HTTP → HTTPS redirection:
+
+```bash
+sudo firewall-cmd --permanent --add-port=xxxxx/tcp
+sudo firewall-cmd --reload
+```
+
+### 2. Test nginx directly
+
+From the K3s node:
+
+```bash
+curl -vk \
+  -H "Host: keycloak.iettaidos.sandbox" \
+  https://127.0.0.1:yyyyy/
+```
+
+You should **not** see:
+
+```text
+CN=TRAEFIK DEFAULT CERT
+```
+
+You should see the certificate generated for:
+
+```text
+keycloak.iettaidos.sandbox
+```
+
+and ultimately a Keycloak response/redirect.
+
+### 3. Make DNS point to the node
+
+Your DNS for:
+
+```text
+keycloak.iettaidos.sandbox
+```
+
+must point to the K3s node's reachable IP.
+
+Then there is one important issue:
+
+**If nginx is NodePort `yyyyy`, users accessing normal HTTPS on port 443 will still go to Traefik unless something forwards 443 → nginx's NodePort.**
+
+You have two clean choices.
+
+---
+
+# Recommended solution: remove Traefik from the external path
+
+Since you already have nginx installed and your Keycloak Ingress explicitly uses nginx, I recommend making nginx the only ingress controller.
+
+First check nginx's service:
+
+```bash
+kubectl -n ingress-nginx get svc ingress-nginx-main-controller -o wide
+```
+
+If it is `NodePort`, you can change it to `LoadBalancer` on K3s, but **don't run both Traefik and nginx as external LoadBalancers on the same node ports**.
+
+The simplest K3s solution is actually to disable the bundled Traefik:
+
+```yaml
+--disable=traefik
+```
+
+in the K3s server configuration, then expose nginx on ports 80/443.
+
+However, **do not blindly disable Traefik if other applications in your cluster are using it.**
+
+---
+
+# Fastest solution for your current server
+
+If this is your single-node/test K3s server and you don't need Traefik, I would do this:
+
+### Disable Traefik in K3s
+
+Edit:
+
+```bash
+sudo vi /etc/rancher/k3s/config.yaml
+```
+
+Add:
+
+```yaml
+disable:
+  - traefik
+```
+
+Then:
+
+```bash
+sudo systemctl restart k3s
+```
+
+Now make nginx the external ingress.
+
+Your desired architecture becomes:
+
+```text
+                   Internet
+                       │
+                       │ :443
+                       ▼
+              ┌─────────────────┐
+              │ ingress-nginx   │
+              │      :443       │
+              └────────┬────────┘
+                       │
+                       ▼
+                Keycloak Ingress
+                       │
+                       ▼
+                keycloak-main
+                       │
+                       ▼
+                  Keycloak
+```
+
+And your existing HelmRelease:
+
+```yaml
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hostname: keycloak.iettaidos.sandbox
+```
+
+can remain unchanged.
+
+### But before changing anything
+
+Run **just this one command**:
+
+```bash
+kubectl -n ingress-nginx get svc ingress-nginx-main-controller
+```
+
+I don't need another 10 commands. **Give me that output and I can give you the exact `firewall-cmd` command and, if necessary, the exact nginx/Traefik change for your cluster.**
+
+
+
 Great — that confirms the firewall was the root cause of the previous problem.
 kubectl get pods -A | grep -Ei 'nginx|traefik'
 
