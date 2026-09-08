@@ -1,6 +1,33 @@
 
 curl -vkL \
   -H "Host: keycloak.iettaidos.sandbox" \
+  https://127.0.0.1:30443/admin/master/console/
+
+spec:
+  values:
+    # Keycloak 25+ için Proxy ayarı (Edge veya Passthrough)
+    proxyHeaders: xforwarded # Veya proxy: edge
+    
+    # Ingress Annotations alanına Nginx proxy header yönlendirmelerini ekleyin
+    ingress:
+      enabled: true
+      ingressClassName: nginx
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+        nginx.ingress.kubernetes.io/proxy-buffers-number: "8"
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        # Port yönlendirmesinin korunması için:
+        nginx.ingress.kubernetes.io/preserve-host: "true"
+
+
+curl -vk -H "Host: keycloak.iettaidos.sandbox" https://127.0.0.1:30443/admin/master/console/
+
+
+
+
+
+curl -vkL \
+  -H "Host: keycloak.iettaidos.sandbox" \
   https://127.0.0.1:30443/
 
 
