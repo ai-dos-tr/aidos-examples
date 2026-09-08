@@ -1,4 +1,131 @@
 
+
+Exactly. **Now we have the solution confirmed.** 🎯
+
+Your nginx ingress works perfectly on NodePort `30443`:
+
+```text
+https://127.0.0.1:30443
+        ↓
+nginx-ingress
+        ↓
+Keycloak
+        ↓
+HTTP 302 → /admin/
+```
+
+So **do not change the Keycloak HelmRelease**.
+
+The remaining problem is simply that your external HTTPS traffic is going to Traefik on port 443 instead of nginx on port 30443.
+
+## Recommended fix
+
+Since you want to keep nginx, make your firewall forward external `443` to nginx's `30443`.
+
+On your server:
+
+```bash
+sudo firewall-cmd --permanent \
+  --add-forward-port=port=443:proto=tcp:toport=30443
+
+sudo firewall-cmd --reload
+```
+
+Also HTTP:
+
+```bash
+sudo firewall-cmd --permanent \
+  --add-forward-port=port=80:proto=tcp:toport=30080
+
+sudo firewall-cmd --reload
+```
+
+Then verify:
+
+```bash
+sudo firewall-cmd --list-forward-ports
+```
+
+You should see:
+
+```text
+port=443:proto=tcp:toport=30443
+port=80:proto=tcp:toport=30080
+```
+
+### One important thing
+
+Because you're using `firewalld`, IP forwarding must be enabled:
+
+```bash
+sudo sysctl -w net.ipv4.ip_forward=1
+```
+
+Persist it:
+
+```bash
+echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-k3s.conf
+sudo sysctl --system
+```
+
+Then test from the server itself:
+
+```bash
+curl -vk \
+  -H "Host: keycloak.iettaidos.sandbox" \
+  https://<NODE-IP>/
+```
+
+You should now get:
+
+```text
+HTTP/2 302
+location: https://keycloak.iettaidos.sandbox/admin/
+```
+
+instead of:
+
+```text
+404 page not found
+```
+
+### Your final architecture
+
+```text
+                         Internet
+                            │
+                     :443 / :80
+                            │
+                            ▼
+                    ┌──────────────┐
+                    │  firewalld   │
+                    │              │
+                    │ 443 → 30443  │
+                    │  80 → 30080  │
+                    └──────┬───────┘
+                           │
+                           ▼
+                 ┌──────────────────┐
+                 │ ingress-nginx     │
+                 │ 30443 / 30080    │
+                 └────────┬─────────┘
+                          │
+                          ▼
+                  keycloak-main:80
+                          │
+                          ▼
+                     Keycloak
+```
+
+**You don't need to disable Traefik** for this solution. Traefik can continue running; external 443 is simply forwarded to nginx's `30443` instead of Traefik's `30606`.
+
+One caveat: if `firewalld` is already configured with a DNAT/forwarding rule for Traefik, remove that conflicting rule first. Your current successful test on `30443` proves nginx itself is ready.
+
+
+
+
+
+
 kubectl -n ingress-nginx get svc ingress-nginx-main-controller
 
 
