@@ -1,4 +1,7 @@
 
+https://claude.ai/magic-link#ddd9b1fe0a70e8fc5b2c90b5c1d722dd:bWlrYWlsLnNhbHRhbkBpbmZvdGVsaWNhLmNvbQ==
+
+
 curl -vkL \
   -H "Host: keycloak.iettaidos.sandbox" \
   https://127.0.0.1:30443/admin/master/console/
