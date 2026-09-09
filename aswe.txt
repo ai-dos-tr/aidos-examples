@@ -1,0 +1,10 @@
+git push --force-with-lease https://ai-dos-tr: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@github.com/ai-dos-tr/aidos-control-plane-server.git  main
+
+
+git push --force-with-lease https://ai-dos-tr:<TOKEN>@github.com/ai-dos-tr/aidos-control-plane-server.git main
+
+
+
+  git config --global user.email "mikail.saltan@infotelica.com"
+  git config --global user.name "ai-dos-tr"
+
