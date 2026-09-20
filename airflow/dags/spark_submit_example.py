@@ -77,13 +77,16 @@ with DAG(
         namespace="default",
         template_spec=SPARK_APPLICATION,
         kubernetes_conn_id="kubernetes_default",
-        do_xcom_push=True,
     )
 
+    # The app name is deterministic from the template (same Jinja expression as
+    # SPARK_APPLICATION["metadata"]["name"]), so the sensor doesn't need to xcom_pull
+    # it from the submit task -- do_xcom_push=True on that task makes it hang forever
+    # waiting for an xcom-sidecar container that's never configured on the driver pod.
     monitor = SparkKubernetesSensor(
         task_id="monitor_spark_pi",
         namespace="default",
-        application_name="{{ task_instance.xcom_pull(task_ids='submit_spark_pi')['metadata']['name'] }}",
+        application_name="spark-pi-{{ ts_nodash | lower }}",
         kubernetes_conn_id="kubernetes_default",
         attach_log=True,
     )
