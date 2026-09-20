@@ -31,7 +31,16 @@ SPARK_APPLICATION = {
             "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
             "spark.hadoop.fs.s3a.path.style.access": "true",
             "spark.hadoop.fs.s3a.connection.ssl.enabled": "true",
+            # This platform's internal services (seaweedfs, keycloak, ...) use a
+            # self-signed CA the JVM doesn't trust by default -- without this, any
+            # HTTPS call (S3A here) fails with "PKIX path building failed". Same
+            # cert bundle/truststore jupyterhub's Spark profiles already mount.
+            "spark.driver.extraJavaOptions": "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=",
+            "spark.executor.extraJavaOptions": "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=",
         },
+        "volumes": [
+            {"name": "cacerts", "secret": {"secretName": "certs-bundle"}},
+        ],
         "driver": {
             "cores": 1,
             "memory": "1g",
@@ -40,6 +49,7 @@ SPARK_APPLICATION = {
                 "AWS_ACCESS_KEY_ID": {"name": "creds-examples-s3", "key": "S3_ACCESS_KEY"},
                 "AWS_SECRET_ACCESS_KEY": {"name": "creds-examples-s3", "key": "S3_SECRET_KEY"},
             },
+            "volumeMounts": [{"name": "cacerts", "mountPath": "/cacerts", "readOnly": True}],
         },
         "executor": {
             "cores": 1,
@@ -49,6 +59,7 @@ SPARK_APPLICATION = {
                 "AWS_ACCESS_KEY_ID": {"name": "creds-examples-s3", "key": "S3_ACCESS_KEY"},
                 "AWS_SECRET_ACCESS_KEY": {"name": "creds-examples-s3", "key": "S3_SECRET_KEY"},
             },
+            "volumeMounts": [{"name": "cacerts", "mountPath": "/cacerts", "readOnly": True}],
         },
     },
 }
