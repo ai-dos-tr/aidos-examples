@@ -1,5 +1,5 @@
 """
-NYC Taxi Pipeline - Airflow + Spark Operator
+NYC Taxi Pipeline - Airflow +  Spark Operator
 Uses the Kubernetes Python API to submit a SparkApplication.
 """
 import os

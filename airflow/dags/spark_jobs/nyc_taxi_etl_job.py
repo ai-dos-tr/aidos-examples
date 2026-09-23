@@ -46,27 +46,41 @@ def upload_to_s3_via_jvm(spark, df, output_uri):
     csv_content = buf.getvalue()
     print(f"Collected {len(rows)} rows, CSV size: {len(csv_content)} bytes")
 
-    # Upload using JVM AWS SDK
+    # Upload using the JVM's AWS SDK v2. This Spark/Hadoop build ships
+    # software.amazon.awssdk.* (bundled by hadoop-aws), not the legacy
+    # com.amazonaws.* SDK v1 -- v1 classes resolve to an empty JavaPackage
+    # and raise "TypeError: 'JavaPackage' object is not callable".
     jvm = spark.sparkContext._jvm
-    credentials = jvm.com.amazonaws.auth.BasicAWSCredentials(access_key, secret_key)
-    credentials_provider = jvm.com.amazonaws.auth.AWSStaticCredentialsProvider(credentials)
-    endpoint_config = jvm.com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration(
-        endpoint, region
+    credentials = jvm.software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create(
+        access_key, secret_key
+    )
+    credentials_provider = jvm.software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
+        credentials
     )
     s3_client = (
-        jvm.com.amazonaws.services.s3.AmazonS3ClientBuilder.standard()
-        .withCredentials(credentials_provider)
-        .withEndpointConfiguration(endpoint_config)
-        .withPathStyleAccessEnabled(True)
+        jvm.software.amazon.awssdk.services.s3.S3Client.builder()
+        .credentialsProvider(credentials_provider)
+        .endpointOverride(jvm.java.net.URI.create(endpoint))
+        .region(jvm.software.amazon.awssdk.regions.Region.of(region))
+        .forcePathStyle(True)
         .build()
     )
 
+    def put_object(key, body):
+        request = (
+            jvm.software.amazon.awssdk.services.s3.model.PutObjectRequest.builder()
+            .bucket(bucket)
+            .key(key)
+            .build()
+        )
+        s3_client.putObject(request, jvm.software.amazon.awssdk.core.sync.RequestBody.fromString(body))
+
     s3_key = f"{key_prefix}/nyc_taxi_aggregated.csv"
     print(f"Uploading -> s3://{bucket}/{s3_key}")
-    s3_client.putObject(bucket, s3_key, csv_content)
+    put_object(s3_key, csv_content)
 
     # Upload _SUCCESS marker
-    s3_client.putObject(bucket, f"{key_prefix}/_SUCCESS", "")
+    put_object(f"{key_prefix}/_SUCCESS", "")
     print(f"Output uploaded to s3://{bucket}/{key_prefix}/")
 
 def main():
