@@ -32,6 +32,15 @@ SPARK_SERVICE_ACCOUNT = "spark"
 S3_CREDENTIALS_SECRET = "creds-examples-s3"
 S3_ACCESS_KEY_FIELD = "S3_ACCESS_KEY"
 S3_SECRET_KEY_FIELD = "S3_SECRET_KEY"
+# Cluster-internal CA, needed for TLS to in-cluster S3 endpoints (e.g. SeaweedFS) -
+# without it the JVM's default trust store rejects the cert and S3A calls fail with
+# PKIX path building failed. Same secret/mount the Jupyter Spark integration uses.
+CACERTS_SECRET = "certs-bundle"
+TRUSTSTORE_JAVA_OPTS = (
+    "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 "
+    "-Djavax.net.ssl.trustStoreType=PKCS12 "
+    "-Djavax.net.ssl.trustStorePassword="
+)
 CONFIGMAP_NAME = "nyc-taxi-etl-code"
 SCRIPT_MOUNT_DIR = "/opt/spark/app"
 SCRIPT_FILE_NAME = "nyc_taxi_etl_job.py"
@@ -144,16 +153,22 @@ def submit_and_wait_nyc_taxi_etl(run_id, timeout_seconds=1200):
                 # Fix for SeaweedFS: write to local then upload via script
                 "spark.hadoop.fs.s3a.fast.upload": "true",
                 "spark.hadoop.fs.s3a.fast.upload.buffer": "bytebuffer",
+                "spark.driver.extraJavaOptions": TRUSTSTORE_JAVA_OPTS,
+                "spark.executor.extraJavaOptions": TRUSTSTORE_JAVA_OPTS,
             },
             "volumes": [
                 {"name": "etl-script", "configMap": {"name": CONFIGMAP_NAME}},
+                {"name": "cacerts", "secret": {"secretName": CACERTS_SECRET}},
             ],
             "driver": {
                 "cores": 1,
                 "memory": "1g",
                 "serviceAccount": SPARK_SERVICE_ACCOUNT,
                 "labels": {"workload": "nyc-taxi-etl"},
-                "volumeMounts": [{"name": "etl-script", "mountPath": SCRIPT_MOUNT_DIR}],
+                "volumeMounts": [
+                    {"name": "etl-script", "mountPath": SCRIPT_MOUNT_DIR},
+                    {"name": "cacerts", "mountPath": "/cacerts", "readOnly": True},
+                ],
                 "envSecretKeyRefs": {
                     "AWS_ACCESS_KEY_ID": {"name": S3_CREDENTIALS_SECRET, "key": S3_ACCESS_KEY_FIELD},
                     "AWS_SECRET_ACCESS_KEY": {"name": S3_CREDENTIALS_SECRET, "key": S3_SECRET_KEY_FIELD},
@@ -165,6 +180,9 @@ def submit_and_wait_nyc_taxi_etl(run_id, timeout_seconds=1200):
                 "cores": 1,
                 "memory": "1g",
                 "labels": {"workload": "nyc-taxi-etl"},
+                "volumeMounts": [
+                    {"name": "cacerts", "mountPath": "/cacerts", "readOnly": True},
+                ],
                 "envSecretKeyRefs": {
                     "AWS_ACCESS_KEY_ID": {"name": S3_CREDENTIALS_SECRET, "key": S3_ACCESS_KEY_FIELD},
                     "AWS_SECRET_ACCESS_KEY": {"name": S3_CREDENTIALS_SECRET, "key": S3_SECRET_KEY_FIELD},
