@@ -83,12 +83,13 @@ with DAG(
     # SPARK_APPLICATION["metadata"]["name"]), so the sensor doesn't need to xcom_pull
     # it from the submit task -- do_xcom_push=True on that task makes it hang forever
     # waiting for an xcom-sidecar container that's never configured on the driver pod.
-    monitor = SparkKubernetesSensor(
-        task_id="monitor_spark_pi",
-        namespace="default",
-        application_name="spark-pi-{{ ts_nodash | lower }}",
-        kubernetes_conn_id="kubernetes_default",
-        attach_log=True,
-    )
+    #monitor = SparkKubernetesSensor(
+    #    task_id="monitor_spark_pi",
+    #    namespace="default",
+    #    application_name="spark-pi-{{ ts_nodash | lower }}",
+    #    kubernetes_conn_id="kubernetes_default",
+    #    attach_log=True,
+    #)
 
-    submit >> monitor
+    submit 
+    #>> monitor
